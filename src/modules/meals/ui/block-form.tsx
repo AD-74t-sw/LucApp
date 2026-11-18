@@ -13,9 +13,10 @@ import {
   fieldError,
   useFormAction,
 } from "@/shared/ui";
-import { MAX_SERVINGS, type MealBlock } from "../domain/block";
+import type { MealBlock } from "../domain/block";
 import type { FoodCategory } from "../domain/food";
 import { createBlockAction } from "./actions";
+import { editableNumber } from "./format";
 
 type FormAction = (state: ActionState, formData: FormData) => Promise<ActionState>;
 
@@ -80,7 +81,7 @@ export function BlockForm({
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-1 text-sm font-medium">Porciones por categoría</legend>
         <p className="text-muted text-xs">
-          Deja en blanco las categorías que no van en este bloque.
+          Deja en blanco las categorías que no van en este bloque. Se aceptan decimales (0,5).
         </p>
         {categories.length === 0 ? (
           <p className="text-muted text-sm">Primero crea categorías en el catálogo.</p>
@@ -94,12 +95,11 @@ export function BlockForm({
                 <span className="min-w-0 truncate">{category.name}</span>
                 <Input
                   name={`servings.${category.id}`}
-                  type="number"
-                  min={0}
-                  max={MAX_SERVINGS}
-                  step={1}
-                  inputMode="numeric"
-                  defaultValue={servings.get(category.id) ?? ""}
+                  inputMode="decimal"
+                  placeholder="0"
+                  defaultValue={
+                    servings.has(category.id) ? editableNumber(servings.get(category.id) ?? 0) : ""
+                  }
                   aria-label={`Porciones de ${category.name}`}
                   className="h-8 w-20 text-right"
                 />

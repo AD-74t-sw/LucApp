@@ -15,8 +15,9 @@ function toFood(row: FoodRow): Food {
     // An icon removed from the catalog shows the default one.
     icon: isFoodIconKey(row.icon) ? row.icon : null,
     measure: row.measure,
-    unitSize: row.unitSize,
-    stock: row.stock,
+    unitLabel: row.unitLabel,
+    unitSize: row.unitSize.toNumber(),
+    stock: row.stock.toNumber(),
     archived: row.archivedAt !== null,
   };
 }
@@ -89,6 +90,7 @@ export type FoodData = {
   name: string;
   icon: FoodIconKey | null;
   measure: FoodMeasure;
+  unitLabel: string | null;
   unitSize: number;
 };
 

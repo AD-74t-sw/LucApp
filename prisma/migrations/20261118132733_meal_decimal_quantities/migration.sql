@@ -1,0 +1,14 @@
+-- AlterTable
+ALTER TABLE "app"."foods" ADD COLUMN     "unitLabel" VARCHAR(30),
+ALTER COLUMN "unitSize" SET DATA TYPE DECIMAL(12,3),
+ALTER COLUMN "stock" SET DEFAULT 0,
+ALTER COLUMN "stock" SET DATA TYPE DECIMAL(12,3);
+
+-- AlterTable
+ALTER TABLE "app"."meal_block_portions" ALTER COLUMN "servings" SET DATA TYPE DECIMAL(6,2);
+
+-- AlterTable
+ALTER TABLE "app"."meal_items" ALTER COLUMN "servings" SET DATA TYPE DECIMAL(6,2),
+ALTER COLUMN "taken" SET DEFAULT 0,
+ALTER COLUMN "taken" SET DATA TYPE DECIMAL(12,3);
+

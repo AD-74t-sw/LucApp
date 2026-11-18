@@ -1,10 +1,10 @@
 import type { MealBlock } from "./block";
-import { type Food, type FoodCategory, servingsIn } from "./food";
+import { type Food, type FoodCategory, SERVING_DECIMALS, roundTo, servingsIn } from "./food";
 
 /** How well the pantry covers one food category for the next days. */
 export type CategoryCoverage = Readonly<{
   categoryId: string;
-  /** Whole servings at home, across the category's foods. */
+  /** Servings at home, across the category's foods (can be fractional). */
   available: number;
   /** Servings the active blocks ask for each day. */
   perDay: number;
@@ -36,12 +36,13 @@ export function coverage(
         .filter((food) => food.categoryId === category.id && !food.archived)
         .reduce((sum, food) => sum + servingsIn(food), 0);
       const needed = perDay * days;
+      const round = (value: number) => roundTo(value, SERVING_DECIMALS);
       return {
         categoryId: category.id,
-        available,
-        perDay,
-        needed,
-        missing: Math.max(0, needed - available),
+        available: round(available),
+        perDay: round(perDay),
+        needed: round(needed),
+        missing: round(Math.max(0, needed - available)),
       };
     });
 }

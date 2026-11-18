@@ -14,7 +14,7 @@ import {
   undoMealAction,
 } from "./actions";
 import { FoodIcon } from "./food-icons";
-import { formatServings } from "./format";
+import { formatNumber, formatServings } from "./format";
 import { EatPlannedForm, type ItemRow, MealItemsForm } from "./meal-forms";
 
 type Context = {
@@ -105,7 +105,10 @@ function BlockCard({
       ) : (
         <p className="text-muted text-sm">
           {block.portions
-            .map((p) => `${categoryName.get(p.categoryId) ?? "Categoría"} ×${p.servings}`)
+            .map(
+              (p) =>
+                `${categoryName.get(p.categoryId) ?? "Categoría"} ×${formatNumber(p.servings)}`,
+            )
             .join(" · ")}
         </p>
       )}

@@ -20,6 +20,7 @@ function food(overrides: Partial<Food>): Food {
     name: "Pollo",
     icon: null,
     measure: "MASS",
+    unitLabel: null,
     unitSize: 150,
     stock: 0,
     archived: false,
@@ -54,20 +55,34 @@ describe("coverage", () => {
   ];
   const foods = [
     food({ id: "chicken", stock: 600 }), // 4 servings
-    food({ id: "eggs", measure: "COUNT", unitSize: 2, stock: 3 }), // 1 serving
-    food({ id: "rice", categoryId: "carbs", unitSize: 80, stock: 1000 }), // 12 servings
+    food({ id: "eggs", measure: "COUNT", unitSize: 2, stock: 3 }), // 1,5 servings
+    food({ id: "rice", categoryId: "carbs", unitSize: 80, stock: 1000 }), // 12,5 servings
     food({ id: "gone", categoryId: "carbs", stock: 9000, archived: true }),
   ];
 
-  it("compares whole servings at home with what the blocks ask for", () => {
+  it("compares servings at home with what the blocks ask for", () => {
     const result = coverage([protein, carbs, fruit], foods, blocks, 3);
     expect(result).toEqual([
-      { categoryId: "protein", available: 5, perDay: 2, needed: 6, missing: 1 },
-      { categoryId: "carbs", available: 12, perDay: 1, needed: 3, missing: 0 },
+      { categoryId: "protein", available: 5.5, perDay: 2, needed: 6, missing: 0.5 },
+      { categoryId: "carbs", available: 12.5, perDay: 1, needed: 3, missing: 0 },
       // No block asks for fruit: never missing.
       { categoryId: "fruit", available: 0, perDay: 0, needed: 0, missing: 0 },
     ]);
     expect(shortages(result).map((c) => c.categoryId)).toEqual(["protein"]);
+  });
+
+  it("handles half servings in blocks", () => {
+    const halfFruit = [block({ portions: [{ categoryId: "fruit", servings: 0.5 }] })];
+    const banana = food({
+      id: "banana",
+      categoryId: "fruit",
+      measure: "COUNT",
+      unitSize: 1,
+      stock: 1,
+    });
+    expect(coverage([fruit], [banana], halfFruit, 3)).toEqual([
+      { categoryId: "fruit", available: 1, perDay: 0.5, needed: 1.5, missing: 0.5 },
+    ]);
   });
 
   it("skips archived categories", () => {

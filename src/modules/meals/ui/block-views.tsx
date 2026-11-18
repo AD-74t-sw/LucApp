@@ -4,6 +4,7 @@ import type { MealBlock } from "../domain/block";
 import type { FoodCategory } from "../domain/food";
 import { deleteBlockAction, toggleBlockArchivedAction, updateBlockAction } from "./actions";
 import { BlockForm } from "./block-form";
+import { formatNumber } from "./format";
 
 /** The day's blocks in order, with what each one asks for. */
 export function BlockList({
@@ -44,7 +45,8 @@ export function BlockList({
             <div className="mt-2 flex flex-wrap gap-1.5">
               {block.portions.map((portion) => (
                 <Badge key={portion.categoryId}>
-                  {names.get(portion.categoryId) ?? "Categoría archivada"} ×{portion.servings}
+                  {names.get(portion.categoryId) ?? "Categoría archivada"} ×
+                  {formatNumber(portion.servings)}
                 </Badge>
               ))}
             </div>

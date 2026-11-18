@@ -397,8 +397,9 @@ async function seedMeals(userId: string, now: LocalDate) {
     category: string,
     icon: FoodIconKey,
     unitAmount: string,
-    unit: "g" | "kg" | "ml" | "l" | "pieces",
-    stock?: { amount: string; unit: "g" | "kg" | "ml" | "l" | "pieces" | "servings" },
+    unit: "g" | "kg" | "ml" | "l" | "pieces" | "custom",
+    stock?: { amount: string; unit: "g" | "kg" | "ml" | "l" | "pieces" | "custom" | "servings" },
+    unitLabel?: string,
   ) => {
     const { id } = unwrap(
       await createFood(userId, {
@@ -407,6 +408,7 @@ async function seedMeals(userId: string, now: LocalDate) {
         icon,
         unitAmount,
         unit,
+        unitLabel,
       }),
     );
     if (stock) unwrap(await addStock(userId, { foodId: id, ...stock }));
@@ -425,9 +427,10 @@ async function seedMeals(userId: string, now: LocalDate) {
   await food("Zanahoria", "Verduras", "carrot", "100", "g", { amount: "1", unit: "kg" });
   await food("Plátano", "Frutas", "banana", "1", "pieces", { amount: "5", unit: "pieces" });
   await food("Manzana", "Frutas", "apple", "1", "pieces", { amount: "4", unit: "pieces" });
-  await food("Palta", "Frutas", "avocado", "50", "g", { amount: "500", unit: "g" });
+  await food("Palta", "Frutas", "avocado", "0,5", "pieces", { amount: "2", unit: "pieces" });
   await food("Leche", "Lácteos", "milk", "200", "ml", { amount: "2", unit: "l" });
-  await food("Yogur", "Lácteos", "jar", "1", "pieces", { amount: "4", unit: "pieces" });
+  await food("Yogur", "Lácteos", "jar", "1", "custom", { amount: "4", unit: "custom" }, "pote");
+  await food("Machas", "Proteínas", "shell", "100", "g");
   const f = (name: string) => foods.get(name) ?? "";
 
   const block = async (

@@ -14,7 +14,11 @@ function toMeal(row: MealRow): Meal {
     date: toLocalDate(row.date),
     status: row.status,
     eatenAt: row.eatenAt,
-    items: row.items.map((i) => ({ foodId: i.foodId, servings: i.servings, taken: i.taken })),
+    items: row.items.map((i) => ({
+      foodId: i.foodId,
+      servings: i.servings.toNumber(),
+      taken: i.taken.toNumber(),
+    })),
   };
 }
 

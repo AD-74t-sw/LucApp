@@ -120,7 +120,7 @@ test("meals: catalog, block, pantry, plan and eat", async ({ page }) => {
     page.getByRole("region", { name: "Proteínas" }).getByText("150 g · 1 porción"),
   ).toBeVisible();
 
-  // Undo puts the chicken back; then "Comí otra cosa": two servings instead of one.
+  // Undo puts the chicken back; then "Comí otra cosa": one and a half servings instead of one.
   await open(page, "/meals");
   page.once("dialog", (confirm) => confirm.accept());
   await button(lunch, "Deshacer").click();
@@ -128,13 +128,16 @@ test("meals: catalog, block, pantry, plan and eat", async ({ page }) => {
   await button(lunch, "Marcar como comido").click();
   const other = await dialog(page, "Marcar como comido");
   await button(other, "Comí otra cosa").click();
-  await other.getByLabel("Porciones de Proteínas").fill("2");
+  await other.getByLabel("Porciones de Proteínas").fill("1,5");
   await button(other, "Marcar como comido").click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(lunch.getByText("2 porciones")).toBeVisible();
+  await expect(lunch.getByText("1,5 porciones")).toBeVisible();
 
   await open(page, "/meals/pantry");
-  await expect(page.getByRole("region", { name: "Proteínas" }).getByText("No hay")).toBeVisible();
+  // 300 g − 225 g (1,5 × 150 g) = 75 g, half a serving.
+  await expect(
+    page.getByRole("region", { name: "Proteínas" }).getByText("75 g · 0,5 porciones"),
+  ).toBeVisible();
 
   // Back to finance: dark again.
   await switchTo(page, "Finanzas");

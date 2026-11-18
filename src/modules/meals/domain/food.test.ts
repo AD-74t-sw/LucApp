@@ -40,22 +40,35 @@ describe("toBaseAmount", () => {
     expect(toBaseAmount("1", "l", rice).ok).toBe(false);
     expect(toBaseAmount("0", "g", rice).ok).toBe(false);
     expect(toBaseAmount("0", "g", rice, { allowZero: true })).toEqual({ ok: true, value: 0 });
-    expect(toBaseAmount("0,0001", "kg", rice, { allowZero: true }).ok).toBe(false);
+    // Below the 3 decimals kept, it would round to nothing.
+    expect(toBaseAmount("0,0000001", "kg", rice, { allowZero: true }).ok).toBe(false);
     expect(toBaseAmount("x", "g", rice).ok).toBe(false);
     expect(toBaseAmount("5000", "kg", rice).ok).toBe(false);
   });
 
-  it("measures a serving", () => {
+  it("measures a serving, decimals and custom units included", () => {
     expect(servingSize("150", "g")).toEqual({ ok: true, value: 150 });
     expect(servingSize("1", "l")).toEqual({ ok: true, value: 1000 });
+    expect(servingSize("0,5", "pieces")).toEqual({ ok: true, value: 0.5 });
+    expect(servingSize("1,5", "custom")).toEqual({ ok: true, value: 1.5 });
+    expect(servingSize("0,25", "kg")).toEqual({ ok: true, value: 250 });
     expect(servingSize("0", "g").ok).toBe(false);
+  });
+
+  it("keeps fractions of a unit in the pantry", () => {
+    const avocado = { measure: "COUNT" as const, unitSize: 0.5 };
+    expect(toBaseAmount("1,5", "pieces", avocado)).toEqual({ ok: true, value: 1.5 });
+    expect(toBaseAmount("3", "servings", avocado)).toEqual({ ok: true, value: 1.5 });
+    expect(toBaseAmount("2", "custom", avocado)).toEqual({ ok: true, value: 2 });
+    expect(toBaseAmount("0,1", "kg", rice)).toEqual({ ok: true, value: 100 });
   });
 });
 
 describe("servings and display", () => {
-  it("counts whole servings in stock", () => {
-    expect(servingsIn({ stock: 1000, unitSize: 80 })).toBe(12);
-    expect(servingsIn({ stock: 79, unitSize: 80 })).toBe(0);
+  it("counts servings in stock, fractions included", () => {
+    expect(servingsIn({ stock: 1000, unitSize: 80 })).toBe(12.5);
+    expect(servingsIn({ stock: 40, unitSize: 80 })).toBe(0.5);
+    expect(servingsIn({ stock: 0.3, unitSize: 0.1 })).toBe(3);
     expect(servingsIn({ stock: 0, unitSize: 1 })).toBe(0);
   });
 

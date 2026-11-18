@@ -37,7 +37,7 @@ function FoodStockRow({
         <p className="text-muted text-xs">
           {food.stock === 0
             ? "No hay"
-            : `${formatAmount(food.stock, food.measure)} · ${formatServings(servings)}`}
+            : `${formatAmount(food.stock, food.measure, food.unitLabel)} · ${formatServings(servings)}`}
         </p>
       </div>
       <div className="flex items-center">

@@ -37,6 +37,8 @@ import {
   portionSchema,
   stockSchema,
 } from "../application/meal-schemas";
+import { SERVINGS_RANGE } from "../domain/block";
+import { parseQuantity } from "../domain/food";
 
 const uuid = z.uuid();
 
@@ -147,7 +149,8 @@ function parseBlock(formData: FormData) {
   const raw = [...formData.entries()]
     .filter(([key]) => key.startsWith("servings."))
     .map(([key, value]) => ({ categoryId: key.slice("servings.".length), servings: String(value) }))
-    .filter((p) => p.servings.trim() !== "" && p.servings.trim() !== "0");
+    // Blank or zero ("0", "0,0") means the category is not in this block.
+    .filter((p) => p.servings.trim() !== "" && parseQuantity(p.servings) !== 0);
   const portions = z.array(portionSchema).safeParse(raw);
   if (!parsed.ok || !portions.success) {
     const fieldErrors = parsed.ok
@@ -155,7 +158,7 @@ function parseBlock(formData: FormData) {
       : parsed.error.status === "error"
         ? parsed.error.fieldErrors
         : {};
-    if (!portions.success) fieldErrors["portions"] = "Las porciones son números enteros de 1 a 50.";
+    if (!portions.success) fieldErrors["portions"] = SERVINGS_RANGE;
     return { ok: false as const, error: invalid("Revisa los campos marcados.", fieldErrors) };
   }
   return { ok: true as const, value: { ...parsed.value, portions: portions.data } };

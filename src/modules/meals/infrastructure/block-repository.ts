@@ -14,7 +14,10 @@ function toBlock(row: BlockRow): MealBlock {
     endTime: row.endTime as LocalTime,
     notify: row.notify,
     archived: row.archivedAt !== null,
-    portions: row.portions.map((p) => ({ categoryId: p.categoryId, servings: p.servings })),
+    portions: row.portions.map((p) => ({
+      categoryId: p.categoryId,
+      servings: p.servings.toNumber(),
+    })),
   };
 }
 

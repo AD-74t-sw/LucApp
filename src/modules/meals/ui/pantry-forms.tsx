@@ -15,7 +15,7 @@ import {
 } from "@/shared/ui";
 import { type AmountUnit, type Food, type FoodCategory, UNITS_BY_MEASURE } from "../domain/food";
 import { addStockAction, saveMealSettingsAction } from "./actions";
-import { AMOUNT_UNIT_LABELS, editableNumber, formatServingSize } from "./format";
+import { amountUnitLabel, editableNumber, formatServingSize } from "./format";
 import type { MealSettings } from "../domain/settings";
 
 type FormAction = (state: ActionState, formData: FormData) => Promise<ActionState>;
@@ -109,7 +109,7 @@ export function AddStockForm({
           >
             {units.map((unit) => (
               <option key={unit} value={unit}>
-                {AMOUNT_UNIT_LABELS[unit]}
+                {amountUnitLabel(unit, food)}
               </option>
             ))}
           </Select>
@@ -151,7 +151,7 @@ export function SetStockForm({ action, food }: { action: FormAction; food: Food 
           <Select name="unit" aria-label="Unidad" defaultValue={unit} className="flex-1">
             {units.map((value) => (
               <option key={value} value={value}>
-                {AMOUNT_UNIT_LABELS[value]}
+                {amountUnitLabel(value, food)}
               </option>
             ))}
           </Select>

@@ -12,6 +12,7 @@ import {
 import { clearPlan, eatMeal, planMeal, undoMeal } from "@/modules/meals/application/manage-meals";
 import { addStock, setStock } from "@/modules/meals/application/manage-pantry";
 import { saveMealSettings } from "@/modules/meals/application/manage-settings";
+import { foodSchema, mealItemsSchema } from "@/modules/meals/application/meal-schemas";
 import { countDevices } from "@/modules/notifications";
 import { subscribe } from "@/modules/notifications/application/manage-subscriptions";
 import { type LocalDate, type LocalTime, addDays } from "@/shared/domain";
@@ -148,6 +149,84 @@ describe("catalog and pantry", () => {
     const protein = pantry.coverage.find((c) => c.categoryId === chicken.categoryId);
     expect(protein).toMatchObject({ available: 1, perDay: 1, needed: 3, missing: 2 });
     expect((await getShortages(userId)).map((c) => c.categoryId)).toEqual([chicken.categoryId]);
+  });
+});
+
+describe("custom units and fractions", () => {
+  it("names its own unit and keeps fractions of a unit", async () => {
+    const { userId, protein, carbs, lunch } = await kitchen();
+    const avocado = unwrap(
+      await createFood(userId, {
+        name: "Palta",
+        categoryId: protein.id,
+        unitAmount: "0,5",
+        unit: "pieces",
+      }),
+    );
+    expect(avocado).toMatchObject({ measure: "COUNT", unitSize: 0.5, unitLabel: null });
+    const cup = unwrap(
+      await createFood(userId, {
+        name: "Arroz cocido",
+        categoryId: carbs.id,
+        unitAmount: "1",
+        unit: "custom",
+        unitLabel: "taza",
+      }),
+    );
+    expect(cup).toMatchObject({ measure: "COUNT", unitSize: 1, unitLabel: "taza" });
+
+    // "Otro" needs the unit's name.
+    const noName = foodSchema.safeParse({
+      name: "Sopa",
+      categoryId: carbs.id,
+      unitAmount: "1",
+      unit: "custom",
+      unitLabel: "",
+    });
+    expect(noName.success ? null : noName.error.issues[0]?.path).toEqual(["unitLabel"]);
+    // Servings typed with a decimal comma; zero is not a serving.
+    expect(mealItemsSchema.parse([{ foodId: cup.id, servings: "1,5" }])).toEqual([
+      { foodId: cup.id, servings: 1.5 },
+    ]);
+    expect(mealItemsSchema.safeParse([{ foodId: cup.id, servings: "0" }]).success).toBe(false);
+
+    unwrap(await addStock(userId, { foodId: avocado.id, amount: "1,5", unit: "pieces" }));
+    unwrap(await addStock(userId, { foodId: cup.id, amount: "2,5", unit: "custom" }));
+    expect(await stockOf(userId, avocado.id)).toBe(1.5);
+    expect(await stockOf(userId, cup.id)).toBe(2.5);
+
+    // One and a half servings of avocado (0,75 of the fruit) and half a cup.
+    unwrap(
+      await eatMeal(
+        userId,
+        { blockId: lunch.id, date: TODAY },
+        [
+          { foodId: avocado.id, servings: 1.5 },
+          { foodId: cup.id, servings: 0.5 },
+        ],
+        TODAY,
+      ),
+    );
+    expect(await stockOf(userId, avocado.id)).toBe(0.75);
+    expect(await stockOf(userId, cup.id)).toBe(2);
+    unwrap(await undoMeal(userId, { blockId: lunch.id, date: TODAY }));
+    expect(await stockOf(userId, avocado.id)).toBe(1.5);
+  });
+
+  it("asks for half servings in a block", async () => {
+    const { userId, protein } = await kitchen();
+    unwrap(
+      await createBlock(userId, {
+        name: "Colación",
+        startTime: t("11:00"),
+        endTime: t("11:30"),
+        notify: false,
+        portions: [{ categoryId: protein.id, servings: 0.5 }],
+      }),
+    );
+    const pantry = await getPantry(userId);
+    // Lunch asks for 1 serving, the snack for half.
+    expect(pantry.coverage.find((c) => c.categoryId === protein.id)?.perDay).toBe(1.5);
   });
 });
 

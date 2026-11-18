@@ -14,11 +14,10 @@ import {
   fieldError,
   useFormAction,
 } from "@/shared/ui";
-import { MAX_SERVINGS } from "../domain/block";
 import type { Food, FoodCategory } from "../domain/food";
 import type { MealItemInput } from "../domain/meal";
 import { FoodIcon } from "./food-icons";
-import { formatServings } from "./format";
+import { editableNumber, formatServings } from "./format";
 import { FoodOptions } from "./pantry-forms";
 
 type FormAction = (state: ActionState, formData: FormData) => Promise<ActionState>;
@@ -26,7 +25,8 @@ type FormAction = (state: ActionState, formData: FormData) => Promise<ActionStat
 /** A starting row: a food already chosen (a plan), or a category to pick one from. */
 export type ItemRow = { foodId: string; servings: number; categoryId?: string };
 
-type Row = ItemRow & { key: number };
+/** While editing, servings stay as typed ("1,5") until the form is sent. */
+type Row = Omit<ItemRow, "servings"> & { servings: string; key: number };
 
 /**
  * The foods of a meal, one row each: food and servings. Used to plan a block,
@@ -52,16 +52,17 @@ export function MealItemsForm({
   const [rows, setRows] = useState<Row[]>(() =>
     (initialRows.length > 0 ? initialRows : [{ foodId: "", servings: 1 }]).map((row, key) => ({
       ...row,
+      servings: editableNumber(row.servings),
       key,
     })),
   );
   const categoryName = new Map(categories.map((c) => [c.id, c.name]));
 
-  const update = (key: number, change: Partial<ItemRow>) =>
+  const update = (key: number, change: Partial<Row>) =>
     setRows((current) => current.map((row) => (row.key === key ? { ...row, ...change } : row)));
   const remove = (key: number) => setRows((current) => current.filter((row) => row.key !== key));
   const add = () =>
-    setRows((current) => [...current, { key: nextKey.current++, foodId: "", servings: 1 }]);
+    setRows((current) => [...current, { key: nextKey.current++, foodId: "", servings: "1" }]);
 
   if (foods.length === 0) {
     return (
@@ -116,13 +117,9 @@ export function MealItemsForm({
                 </div>
                 <Input
                   name={`items.${index}.servings`}
-                  type="number"
-                  min={1}
-                  max={MAX_SERVINGS}
-                  step={1}
-                  inputMode="numeric"
+                  inputMode="decimal"
                   value={row.servings}
-                  onChange={(event) => update(row.key, { servings: Number(event.target.value) })}
+                  onChange={(event) => update(row.key, { servings: event.target.value })}
                   aria-label={`Porciones de ${category ?? "la comida"}`}
                   className="w-20 text-right"
                 />

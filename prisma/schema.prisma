@@ -580,9 +580,10 @@ model Reimbursement {
 
 // ---------------------------------------------------------------------------
 // Meals: food catalog, daily blocks, what was eaten and what is at home.
-// Quantities are counted in servings ("unidades"): each food says how much one
+// Quantities are counted in servings ("porciones"): each food says how much one
 // serving is. Stock is kept in the food's base measure (grams, milliliters or
-// pieces) so buying "1 kg de arroz" needs no rounding.
+// units) so buying "1 kg de arroz" needs no rounding. Quantities are decimal
+// (half a serving, 0.5 of an avocado), with 3 decimals for amounts and 2 for servings.
 // ---------------------------------------------------------------------------
 
 enum FoodMeasure {
@@ -590,7 +591,7 @@ enum FoodMeasure {
   MASS
   /// Milliliters.
   VOLUME
-  /// Pieces (eggs, slices, cans…).
+  /// Units: pieces (eggs, slices, cans…) or the food's own unit (`unitLabel`: "taza", "plato").
   COUNT
 
   @@schema("app")
@@ -632,10 +633,12 @@ model Food {
   /// Key of the icon chosen in the catalog (see meals/domain/food-icons.ts).
   icon       String?      @db.VarChar(40)
   measure    FoodMeasure
-  /// Size of one serving in the base measure (g, ml or pieces).
-  unitSize   Int
+  /// COUNT foods measured in a unit of their own ("taza", "plato"); null = plain units.
+  unitLabel  String?      @db.VarChar(30)
+  /// Size of one serving in the base measure (g, ml or units).
+  unitSize   Decimal      @db.Decimal(12, 3)
   /// What is at home, in the base measure.
-  stock      Int          @default(0)
+  stock      Decimal      @default(0) @db.Decimal(12, 3)
   archivedAt DateTime?
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
@@ -677,7 +680,7 @@ model MealBlockPortion {
   block      MealBlock    @relation(fields: [blockId], references: [id], onDelete: Cascade)
   categoryId String       @db.Uuid
   category   FoodCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  servings   Int
+  servings   Decimal      @db.Decimal(6, 2)
 
   @@id([blockId, categoryId])
   @@index([userId])
@@ -712,11 +715,11 @@ model MealItem {
   mealId   String @db.Uuid
   meal     Meal   @relation(fields: [mealId], references: [id], onDelete: Cascade)
   foodId   String @db.Uuid
-  food     Food   @relation(fields: [foodId], references: [id], onDelete: Restrict)
-  servings Int
+  food     Food    @relation(fields: [foodId], references: [id], onDelete: Restrict)
+  servings Decimal @db.Decimal(6, 2)
   /// Base amount actually taken out of the pantry when eaten (less than the
   /// servings when the pantry was short). Undoing puts back exactly this.
-  taken    Int    @default(0)
+  taken    Decimal @default(0) @db.Decimal(12, 3)
 
   @@index([mealId])
   @@index([foodId])

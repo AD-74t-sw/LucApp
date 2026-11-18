@@ -63,6 +63,7 @@ async function foodData(userId: string, input: FoodInput, exceptId?: string) {
     name: input.name,
     icon: input.icon ?? null,
     measure: measureOf(input.unit),
+    unitLabel: input.unit === "custom" ? (input.unitLabel ?? null) : null,
     unitSize: unitSize.value,
   });
 }
@@ -74,7 +75,7 @@ export async function createFood(userId: string, input: FoodInput): Promise<Resu
 }
 
 /**
- * Updates a food. Switching between weight, volume and pieces empties its
+ * Updates a food. Switching between weight, volume and units empties its
  * stock: grams of something cannot become milliliters.
  */
 export async function updateFood(

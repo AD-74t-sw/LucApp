@@ -147,7 +147,7 @@ Además, los archivos de `ui/` solo pueden importar **tipos** desde la API de se
 
 ## Comidas (meals)
 
-- **Porciones:** todo se cuenta en porciones ("unidades"). Cada comida dice cuánto es una porción en su medida base (`MASS` en gramos, `VOLUME` en mililitros, `COUNT` en unidades), y la despensa (`stock`) se guarda en esa misma medida base, así "1 kg de arroz" con porciones de 80 g son 12 porciones sin redondeos. `toBaseAmount` interpreta lo que escribe la persona ("1,5" kg, "250" g o "3" porciones).
+- **Porciones:** todo se cuenta en porciones. Cada comida dice cuánto es una porción en su medida base (`MASS` en gramos, `VOLUME` en mililitros, `COUNT` en unidades o en una unidad propia, `unitLabel`: "taza", "pote"), y la despensa (`stock`) se guarda en esa misma medida base, así "1 kg de arroz" con porciones de 80 g son 12,5 porciones. Todo admite decimales (media porción, 0,5 palta): las cantidades son `DECIMAL` con 3 decimales y las porciones con 2 (`roundTo`). `toBaseAmount` interpreta lo que escribe la persona ("1,5" kg, "250" g o "3" porciones).
 - **Bloques:** nombre, rango horario (`LocalTime` "HH:MM" en la zona del usuario; no cruzan la medianoche), aviso y porciones por categoría. Se repiten todos los días.
 - **Registro** (`Meal` por bloque y día):
   - Se puede **planificar** antes (la comida de mañana ya está lista). Planificar no toca la despensa.

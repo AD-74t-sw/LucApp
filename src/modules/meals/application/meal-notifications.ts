@@ -23,7 +23,10 @@ function mealPayload(
 ): PushPayload {
   const names = new Map(foods.map((f) => [f.id, f.name]));
   const planned = (meal?.items ?? [])
-    .map((i) => `${names.get(i.foodId) ?? "Comida"}${i.servings > 1 ? ` ×${i.servings}` : ""}`)
+    .map((i) => {
+      const servings = i.servings === 1 ? "" : ` ×${String(i.servings).replace(".", ",")}`;
+      return `${names.get(i.foodId) ?? "Comida"}${servings}`;
+    })
     .join(", ");
   return {
     title: `${block.name} · ${block.startTime}–${block.endTime}`,

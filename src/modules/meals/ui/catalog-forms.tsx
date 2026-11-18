@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useState } from "react";
 import {
   type ActionState,
   ActionForm,
@@ -20,7 +20,8 @@ import { AMOUNT_UNIT_LABELS, servingSizeFields } from "./format";
 
 type FormAction = (state: ActionState, formData: FormData) => Promise<ActionState>;
 
-const SERVING_UNITS = ["g", "kg", "ml", "l", "pieces"] as const;
+const SERVING_UNITS = ["g", "kg", "ml", "l", "pieces", "custom"] as const;
+type ServingUnit = (typeof SERVING_UNITS)[number];
 
 /** New category, or renaming one. */
 export function FoodCategoryForm({
@@ -74,7 +75,8 @@ export function FoodForm({
   const id = useId();
   const form = useFormAction(action ?? createFoodAction);
   const { state } = form;
-  const size = food ? servingSizeFields(food) : { amount: "", unit: "g" as const };
+  const size = food ? servingSizeFields(food) : { amount: "", unit: "g" as const, label: "" };
+  const [unit, setUnit] = useState<ServingUnit>(size.unit);
   return (
     <ActionForm form={form} className="flex flex-col gap-4">
       <FormAlert state={state} />
@@ -110,11 +112,17 @@ export function FoodForm({
         <Field
           label="Una porción es"
           htmlFor={`${id}-amount`}
-          error={fieldError(state, "unitAmount") ?? fieldError(state, "unit")}
+          error={
+            fieldError(state, "unitAmount") ??
+            fieldError(state, "unit") ??
+            fieldError(state, "unitLabel")
+          }
           hint={
-            food
-              ? "Cambiar entre peso, volumen y unidades vacía lo que hay en la despensa."
-              : "Lo que comes de una vez: 150 g de pollo, 1 huevo, 200 ml de leche."
+            unit === "custom"
+              ? "Tu propia unidad: 1 porción = 1 taza, 2 rebanadas, 0,5 plato…"
+              : food
+                ? "Se aceptan decimales. Cambiar entre peso, volumen y unidades vacía lo que hay en la despensa."
+                : "Lo que comes de una vez: 150 g de pollo, 1 huevo, 0,5 palta. Se aceptan decimales."
           }
           className="@md:col-span-2"
         >
@@ -128,14 +136,32 @@ export function FoodForm({
               placeholder="150"
               className="w-28"
             />
-            <Select name="unit" aria-label="Unidad" defaultValue={size.unit} className="flex-1">
-              {SERVING_UNITS.map((unit) => (
-                <option key={unit} value={unit}>
-                  {AMOUNT_UNIT_LABELS[unit]}
+            <Select
+              name="unit"
+              aria-label="Unidad"
+              value={unit}
+              onChange={(event) => setUnit(event.target.value as ServingUnit)}
+              className="flex-1"
+            >
+              {SERVING_UNITS.map((value) => (
+                <option key={value} value={value}>
+                  {AMOUNT_UNIT_LABELS[value]}
                 </option>
               ))}
             </Select>
           </div>
+          {unit === "custom" ? (
+            <Input
+              name="unitLabel"
+              required
+              maxLength={30}
+              defaultValue={size.label}
+              placeholder="taza, plato, rebanada…"
+              aria-label="Nombre de tu unidad"
+              autoComplete="off"
+              className="mt-2"
+            />
+          ) : null}
         </Field>
       </div>
       <FoodIconPicker name="icon" defaultValue={food?.icon ?? null} />

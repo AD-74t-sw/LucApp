@@ -95,6 +95,7 @@ import {
   Popsicle,
   Salad,
   Sandwich,
+  Shell,
   Shrimp,
   Soup,
   Sprout,
@@ -198,6 +199,12 @@ export const FOOD_ICONS: Record<FoodIconKey, IconEntry> = {
   fish: { label: "Pescado", group: "Proteínas", drawing: Fish, keywords: "salmón atún merluza" },
   shrimp: { label: "Camarón", group: "Proteínas", drawing: Shrimp, keywords: "mariscos" },
   crab: { label: "Jaiba", group: "Proteínas", drawing: crab, keywords: "cangrejo mariscos" },
+  shell: {
+    label: "Conchas",
+    group: "Proteínas",
+    drawing: Shell,
+    keywords: "mariscos almejas machas choritos ostiones conchitas",
+  },
   nut: {
     label: "Frutos secos",
     group: "Proteínas",

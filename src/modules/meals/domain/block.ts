@@ -16,6 +16,13 @@ export type MealBlock = Readonly<{
 
 export const MAX_SERVINGS = 50;
 
+export const SERVINGS_RANGE = `Las porciones deben ser mayores que 0 y hasta ${MAX_SERVINGS} (se aceptan decimales).`;
+
+/** Servings can be fractional (half a serving), but never zero or negative. */
+export function isValidServings(servings: number): boolean {
+  return Number.isFinite(servings) && servings > 0 && servings <= MAX_SERVINGS;
+}
+
 export function validateBlock(input: {
   startTime: LocalTime;
   endTime: LocalTime;
@@ -33,8 +40,8 @@ export function validateBlock(input: {
       "portions",
     );
   }
-  if (input.portions.some((p) => p.servings < 1 || p.servings > MAX_SERVINGS)) {
-    return validationError(`Las porciones van de 1 a ${MAX_SERVINGS}.`, "portions");
+  if (input.portions.some((p) => !isValidServings(p.servings))) {
+    return validationError(SERVINGS_RANGE, "portions");
   }
   if (new Set(input.portions.map((p) => p.categoryId)).size !== input.portions.length) {
     return validationError("Cada categoría va una sola vez.", "portions");

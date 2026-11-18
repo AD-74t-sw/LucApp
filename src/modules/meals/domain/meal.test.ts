@@ -48,10 +48,28 @@ describe("meal items", () => {
     ]);
   });
 
-  it("needs at least one item with sensible servings", () => {
+  it("needs at least one item with sensible servings, decimals allowed", () => {
     expect(validateItems([]).ok).toBe(false);
     expect(validateItems([{ foodId: "rice", servings: 0 }]).ok).toBe(false);
+    expect(validateItems([{ foodId: "rice", servings: 51 }]).ok).toBe(false);
     expect(validateItems([{ foodId: "rice", servings: 2 }]).ok).toBe(true);
+    expect(validateItems([{ foodId: "rice", servings: 0.5 }]).ok).toBe(true);
+  });
+
+  it("merges fractional servings without float noise", () => {
+    expect(
+      mergeItems([
+        { foodId: "rice", servings: 0.1 },
+        { foodId: "rice", servings: 0.2 },
+      ]),
+    ).toEqual([{ foodId: "rice", servings: 0.3 }]);
+  });
+
+  it("takes half servings out of the pantry", () => {
+    const foods = new Map([["avocado", { unitSize: 0.5, stock: 1 }]]);
+    expect(takeFromPantry([{ foodId: "avocado", servings: 1.5 }], foods)).toEqual([
+      { foodId: "avocado", servings: 1.5, taken: 0.75 },
+    ]);
   });
 
   it("takes the servings out of the pantry, never below zero", () => {

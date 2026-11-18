@@ -1,6 +1,6 @@
 import { type LocalDate, type Result, ok, validationError } from "@/shared/domain";
-import { MAX_SERVINGS } from "./block";
-import type { Food } from "./food";
+import { SERVINGS_RANGE, isValidServings } from "./block";
+import { AMOUNT_DECIMALS, type Food, SERVING_DECIMALS, roundTo } from "./food";
 
 /**
  * A block on a given day. It can be planned ahead (what will be eaten) and
@@ -30,7 +30,10 @@ export type Meal = Readonly<{
 export function mergeItems(items: readonly MealItemInput[]): MealItemInput[] {
   const merged = new Map<string, number>();
   for (const item of items) {
-    merged.set(item.foodId, (merged.get(item.foodId) ?? 0) + item.servings);
+    merged.set(
+      item.foodId,
+      roundTo((merged.get(item.foodId) ?? 0) + item.servings, SERVING_DECIMALS),
+    );
   }
   return [...merged].map(([foodId, servings]) => ({ foodId, servings }));
 }
@@ -39,8 +42,8 @@ export function validateItems(items: readonly MealItemInput[]): Result<void> {
   if (items.length === 0) {
     return validationError("Agrega al menos una comida.", "items");
   }
-  if (items.some((i) => i.servings < 1 || i.servings > MAX_SERVINGS)) {
-    return validationError(`Las porciones van de 1 a ${MAX_SERVINGS}.`, "items");
+  if (items.some((i) => !isValidServings(i.servings))) {
+    return validationError(SERVINGS_RANGE, "items");
   }
   return ok();
 }
@@ -59,8 +62,8 @@ export function takeFromPantry(
     const food = foods.get(item.foodId);
     if (!food) return { ...item, taken: 0 };
     const available = left.get(item.foodId) ?? 0;
-    const taken = Math.min(item.servings * food.unitSize, available);
-    left.set(item.foodId, available - taken);
+    const taken = roundTo(Math.min(item.servings * food.unitSize, available), AMOUNT_DECIMALS);
+    left.set(item.foodId, roundTo(available - taken, AMOUNT_DECIMALS));
     return { ...item, taken };
   });
 }

@@ -46,6 +46,7 @@ export const FOOD_ICON_KEYS = [
   "fish",
   "shrimp",
   "crab",
+  "shell",
   "nut",
   "kebab",
   "barbecue",
