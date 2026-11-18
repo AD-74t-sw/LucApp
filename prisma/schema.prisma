@@ -1,0 +1,772 @@
+// LucApp database schema.
+//
+// Conventions
+// - Money is stored as BIGINT in the currency's minor unit (CLP: pesos, USD: cents).
+// - Every business table carries `userId` (Supabase auth user id, UUID); repositories always filter by it.
+// - Calendar dates (no time of day) use @db.Date and are handled as "YYYY-MM-DD" strings in code.
+// - Tables are snake_case plural; columns keep Prisma's camelCase.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// All application tables live in the `app` schema. Supabase only exposes
+// `public` through its REST API, so these tables are never reachable with the
+// publishable key; the app reads them exclusively through Prisma on the server.
+datasource db {
+  provider = "postgresql"
+  schemas  = ["app"]
+}
+
+// ---------------------------------------------------------------------------
+// Identity. Authentication itself lives in Supabase Auth (schema `auth`);
+// `User.id` is the Supabase auth user id.
+// ---------------------------------------------------------------------------
+
+model User {
+  id        String   @id @db.Uuid
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  settings          UserSettings?
+  financialAccounts FinancialAccount[]
+  cards             Card[]
+  categories        Category[]
+  transactions      Transaction[]
+  installmentPlans  InstallmentPlan[]
+  people            Person[]
+  debts             Debt[]
+  debtPayments      DebtPayment[]
+  bankNotices       BankNotice[]
+  ingestTokens      IngestToken[]
+  noticeRules       NoticeRule[]
+  reimbursements    Reimbursement[]
+  foodCategories    FoodCategory[]
+  foods             Food[]
+  mealBlocks        MealBlock[]
+  mealBlockPortions MealBlockPortion[]
+  meals             Meal[]
+  mealItems         MealItem[]
+  mealSettings      MealSettings?
+  pushSubscriptions PushSubscription[]
+  notificationLogs  NotificationDelivery[]
+
+  @@map("users")
+  @@schema("app")
+}
+
+model UserSettings {
+  userId       String   @id @db.Uuid
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// ISO 4217 code used to aggregate metrics.
+  baseCurrency String   @db.Char(3)
+  /// IANA time zone used to compute "today" and month boundaries.
+  timezone     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("user_settings")
+  @@schema("app")
+}
+
+// ---------------------------------------------------------------------------
+// Accounts & cards
+// ---------------------------------------------------------------------------
+
+enum AccountType {
+  CHECKING
+  SAVINGS
+  CASH
+  DIGITAL_WALLET
+  CREDIT_CARD
+
+  @@schema("app")
+}
+
+enum CardNetwork {
+  VISA
+  MASTERCARD
+  AMEX
+  DINERS
+  OTHER
+
+  @@schema("app")
+}
+
+/// Where money lives. A credit card is an account whose balance is usually negative (what you owe).
+model FinancialAccount {
+  id                      String      @id @default(uuid(7)) @db.Uuid
+  userId                  String      @db.Uuid
+  user                    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type                    AccountType
+  name                    String
+  institution             String?
+  /// Immutable after creation: every transaction is stored in the account currency.
+  currency                String      @db.Char(3)
+  openingBalance          BigInt      @default(0)
+  /// Only for CREDIT_CARD accounts.
+  creditLimit             BigInt?
+  /// Credit cards may also carry a debt in a second currency (the "international"
+  /// quota of Chilean cards). Its balance comes from transactions in that currency.
+  secondaryCurrency       String?     @db.Char(3)
+  secondaryCreditLimit    BigInt?
+  secondaryOpeningBalance BigInt      @default(0)
+  closingDay              Int?
+  dueDay                  Int?
+  archivedAt              DateTime?
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
+
+  cards            Card[]
+  transactions     Transaction[]
+  installmentPlans InstallmentPlan[]
+
+  @@unique([userId, name])
+  @@map("financial_accounts")
+  @@schema("app")
+}
+
+/// A payment instrument tied to an account. Debit vs credit is derived from the account type.
+model Card {
+  id         String           @id @default(uuid(7)) @db.Uuid
+  userId     String           @db.Uuid
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId  String           @db.Uuid
+  account    FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  name       String
+  network    CardNetwork
+  last4      String?          @db.Char(4)
+  archivedAt DateTime?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  transactions     Transaction[]
+  installmentPlans InstallmentPlan[]
+
+  @@index([userId])
+  @@index([accountId])
+  @@map("cards")
+  @@schema("app")
+}
+
+// ---------------------------------------------------------------------------
+// Categories
+// ---------------------------------------------------------------------------
+
+enum CategoryKind {
+  EXPENSE
+  INCOME
+
+  @@schema("app")
+}
+
+enum CostType {
+  FIXED
+  VARIABLE
+
+  @@schema("app")
+}
+
+enum Necessity {
+  ESSENTIAL
+  DISCRETIONARY
+
+  @@schema("app")
+}
+
+/// Two-level hierarchy: a category may have one parent (subcategory) but no grandparents.
+model Category {
+  id               String       @id @default(uuid(7)) @db.Uuid
+  userId           String       @db.Uuid
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentId         String?      @db.Uuid
+  parent           Category?    @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children         Category[]   @relation("CategoryTree")
+  name             String
+  kind             CategoryKind
+  color            String
+  /// Defaults copied into new expenses; each expense can override them.
+  defaultCostType  CostType?
+  defaultNecessity Necessity?
+  archivedAt       DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  transactions     Transaction[]
+  installmentPlans InstallmentPlan[]
+  debts            Debt[]
+
+  @@index([userId, kind])
+  @@index([parentId])
+  @@map("categories")
+  @@schema("app")
+}
+
+// ---------------------------------------------------------------------------
+// Transactions & installments
+// ---------------------------------------------------------------------------
+
+enum TransactionKind {
+  EXPENSE
+  INCOME
+  TRANSFER
+  /// Money movement caused by a debt or a debt payment (not counted as income/expense).
+  DEBT
+
+  @@schema("app")
+}
+
+/// Single source of truth for money movements. `amount` is signed: negative = money leaves the account.
+model Transaction {
+  id                String           @id @default(uuid(7)) @db.Uuid
+  userId            String           @db.Uuid
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId         String           @db.Uuid
+  account           FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  cardId            String?          @db.Uuid
+  card              Card?            @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  kind              TransactionKind
+  amount            BigInt
+  /// Copy of the account currency, so aggregations do not need a join.
+  currency          String           @db.Char(3)
+  date              DateTime         @db.Date
+  description       String
+  note              String?
+  categoryId        String?          @db.Uuid
+  category          Category?        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  costType          CostType?
+  necessity         Necessity?
+  /// Both legs of a transfer share this id.
+  transferGroupId   String?          @db.Uuid
+  installmentPlanId String?          @db.Uuid
+  installmentPlan   InstallmentPlan? @relation(fields: [installmentPlanId], references: [id], onDelete: Cascade)
+  installmentNumber Int?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  debt        Debt?
+  debtPayment   DebtPayment?
+  bankNotices   BankNotice[]
+  reimbursement Reimbursement?
+
+  @@index([userId, date])
+  @@index([userId, categoryId, date])
+  @@index([accountId, date])
+  @@index([transferGroupId])
+  @@index([installmentPlanId])
+  @@map("transactions")
+  @@schema("app")
+}
+
+/// A purchase paid in N monthly installments. Each installment is a real Transaction.
+model InstallmentPlan {
+  id               String           @id @default(uuid(7)) @db.Uuid
+  userId           String           @db.Uuid
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId        String           @db.Uuid
+  account          FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  cardId           String?          @db.Uuid
+  card             Card?            @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  categoryId       String           @db.Uuid
+  category         Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  description      String
+  /// Positive total of the purchase, in minor units.
+  totalAmount      BigInt
+  currency         String           @db.Char(3)
+  installmentCount Int
+  firstChargeDate  DateTime         @db.Date
+  costType         CostType?
+  necessity        Necessity?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  transactions Transaction[]
+
+  @@index([userId])
+  @@map("installment_plans")
+  @@schema("app")
+}
+
+// ---------------------------------------------------------------------------
+// Debts
+// ---------------------------------------------------------------------------
+
+enum DebtDirection {
+  /// I owe money to the person.
+  I_OWE
+  /// The person owes money to me.
+  THEY_OWE
+
+  @@schema("app")
+}
+
+model Person {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  debts Debt[]
+
+  @@unique([userId, name])
+  @@map("people")
+  @@schema("app")
+}
+
+model Debt {
+  id            String        @id @default(uuid(7)) @db.Uuid
+  userId        String        @db.Uuid
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  personId      String        @db.Uuid
+  person        Person        @relation(fields: [personId], references: [id], onDelete: Cascade)
+  direction     DebtDirection
+  /// Positive original amount, in minor units.
+  principal     BigInt
+  currency      String        @db.Char(3)
+  date          DateTime      @db.Date
+  dueDate       DateTime?     @db.Date
+  description   String
+  /// Expense category. An I_OWE debt not registered on an account (someone paid
+  /// for me) counts as spending in this category; see the metrics module.
+  categoryId    String?       @db.Uuid
+  category      Category?     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  costType      CostType?
+  necessity     Necessity?
+  settledAt     DateTime?
+  /// Optional account movement registered when the debt was created.
+  transactionId String?       @unique @db.Uuid
+  transaction   Transaction?  @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  payments DebtPayment[]
+
+  @@index([userId, personId])
+  @@index([userId, date])
+  @@map("debts")
+  @@schema("app")
+}
+
+model DebtPayment {
+  id            String       @id @default(uuid(7)) @db.Uuid
+  userId        String       @db.Uuid
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  debtId        String       @db.Uuid
+  debt          Debt         @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  /// Positive amount, in the debt currency minor units.
+  amount        BigInt
+  date          DateTime     @db.Date
+  note          String?
+  /// Optional account movement registered with the payment.
+  transactionId String?      @unique @db.Uuid
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  createdAt     DateTime     @default(now())
+
+  @@index([debtId])
+  @@map("debt_payments")
+  @@schema("app")
+}
+
+// ---------------------------------------------------------------------------
+// Inbox: bank notices (notifications, Apple Pay, emails, SMS) waiting to be categorized
+// ---------------------------------------------------------------------------
+
+enum NoticeChannel {
+  EMAIL
+  SMS
+  /// Notification of the bank's app, forwarded by an iOS Shortcut.
+  PUSH
+  MANUAL
+  /// Apple Pay payment (Wallet "Transaction" automation): structured, not parsed from text.
+  WALLET
+
+  @@schema("app")
+}
+
+enum NoticeKind {
+  PURCHASE
+  TRANSFER_OUT
+  TRANSFER_IN
+  CARD_PAYMENT
+  WITHDRAWAL
+  DEPOSIT
+  UNKNOWN
+
+  @@schema("app")
+}
+
+enum NoticeInstrument {
+  CREDIT
+  DEBIT
+
+  @@schema("app")
+}
+
+enum NoticeStatus {
+  PENDING
+  RECORDED
+  DISMISSED
+  /// The same movement already arrived through another channel (see duplicateOfId).
+  DUPLICATE
+
+  @@schema("app")
+}
+
+/// A bank notification as received, plus what the parser read from it.
+model BankNotice {
+  id                      String            @id @default(uuid(7)) @db.Uuid
+  userId                  String            @db.Uuid
+  user                    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel                 NoticeChannel
+  sender                  String?
+  subject                 String?
+  text                    String
+  /// SHA-256 of the normalized text: the same notice sent twice is stored once.
+  textHash                String            @db.Char(64)
+  receivedAt              DateTime
+  /// Parsed fields (null when the text did not say). `institution` is a catalog name.
+  institution             String?
+  kind                    NoticeKind
+  instrument              NoticeInstrument?
+  amount                  BigInt?
+  currency                String?           @db.Char(3)
+  merchant                String?
+  counterpartyInstitution String?
+  last4                   String?           @db.Char(4)
+  occurredOn              DateTime?         @db.Date
+  occurredTime            String?           @db.Char(5)
+  status                  NoticeStatus      @default(PENDING)
+  duplicateOfId           String?           @db.Uuid
+  duplicateOf             BankNotice?       @relation("NoticeDuplicates", fields: [duplicateOfId], references: [id], onDelete: Cascade)
+  duplicates              BankNotice[]      @relation("NoticeDuplicates")
+  /// What it was recorded as: an expense/income, or both legs of a transfer.
+  transactionId           String?           @db.Uuid
+  transaction             Transaction?      @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  transferGroupId         String?           @db.Uuid
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+
+  @@index([userId, status, receivedAt])
+  @@index([userId, textHash])
+  @@index([duplicateOfId])
+  @@map("bank_notices")
+  @@schema("app")
+}
+
+/// Secret used by iOS Shortcuts (or an email forwarder) to send notices. Only its hash is stored.
+model IngestToken {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  userId     String    @db.Uuid
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  tokenHash  String    @unique @db.Char(64)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@map("ingest_tokens")
+  @@schema("app")
+}
+
+/// What the user did last time with a merchant or counterparty, to suggest it next time.
+/// Ids are not foreign keys: stale ones are ignored when suggesting.
+model NoticeRule {
+  id          String          @id @default(uuid(7)) @db.Uuid
+  userId      String          @db.Uuid
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  merchantKey String
+  kind        TransactionKind
+  categoryId  String?         @db.Uuid
+  accountId   String?         @db.Uuid
+  cardId      String?         @db.Uuid
+  toAccountId String?         @db.Uuid
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([userId, merchantKey])
+  @@map("notice_rules")
+  @@schema("app")
+}
+
+// ---------------------------------------------------------------------------
+// Currencies
+// ---------------------------------------------------------------------------
+
+/// Market exchange rates shared by every user (e.g. Chile's "dólar observado").
+/// 1 unit of `fromCurrency` = `rate` units of `toCurrency` on `date`.
+model MarketRate {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  fromCurrency String   @db.Char(3)
+  toCurrency   String   @db.Char(3)
+  date         DateTime @db.Date
+  rate         Decimal  @db.Decimal(20, 6)
+  source       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([fromCurrency, toCurrency, date])
+  @@map("market_rates")
+  @@schema("app")
+}
+
+// ---------------------------------------------------------------------------
+// Reimbursements: money expected back (health plan, insurance, taxes, stores)
+// ---------------------------------------------------------------------------
+
+enum ReimbursementKind {
+  /// Isapre or Fonasa.
+  HEALTH_PLAN
+  /// Seguro complementario de salud.
+  SUPPLEMENTARY_INSURANCE
+  /// Any other insurance (car, home, travel…).
+  INSURANCE
+  /// Tax refund (Operación Renta).
+  TAX
+  /// Store or service refund.
+  PURCHASE
+  OTHER
+
+  @@schema("app")
+}
+
+enum ReimbursementStatus {
+  /// Requested; the amount is not known yet.
+  IN_REVIEW
+  /// Amount and payment window known; waiting for the money.
+  APPROVED
+  RECEIVED
+  REJECTED
+
+  @@schema("app")
+}
+
+model Reimbursement {
+  id              String              @id @default(uuid(7)) @db.Uuid
+  userId          String              @db.Uuid
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind            ReimbursementKind
+  /// Who pays it back ("Isapre Colmena", "MetLife").
+  provider        String
+  description     String
+  currency        String              @db.Char(3)
+  /// Day the claim was submitted.
+  requestedOn     DateTime            @db.Date
+  /// Rough amount while in review (minor units), if known.
+  estimatedAmount BigInt?
+  status          ReimbursementStatus @default(IN_REVIEW)
+  /// Approved amount (minor units).
+  amount          BigInt?
+  /// Window in which the money should arrive.
+  expectedFrom    DateTime?           @db.Date
+  expectedTo      DateTime?           @db.Date
+  receivedOn      DateTime?           @db.Date
+  receivedAmount  BigInt?
+  note            String?
+  /// Optional income movement registered when the money arrived.
+  transactionId   String?             @unique @db.Uuid
+  transaction     Transaction?        @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([userId, status])
+  @@map("reimbursements")
+  @@schema("app")
+}
+
+// ---------------------------------------------------------------------------
+// Meals: food catalog, daily blocks, what was eaten and what is at home.
+// Quantities are counted in servings ("unidades"): each food says how much one
+// serving is. Stock is kept in the food's base measure (grams, milliliters or
+// pieces) so buying "1 kg de arroz" needs no rounding.
+// ---------------------------------------------------------------------------
+
+enum FoodMeasure {
+  /// Grams.
+  MASS
+  /// Milliliters.
+  VOLUME
+  /// Pieces (eggs, slices, cans…).
+  COUNT
+
+  @@schema("app")
+}
+
+enum MealStatus {
+  /// What to eat is decided, not eaten yet.
+  PLANNED
+  /// Eaten: its items were taken out of the pantry.
+  EATEN
+
+  @@schema("app")
+}
+
+/// "Proteínas", "Carbohidratos", "Lácteos"… Blocks ask for servings per category.
+model FoodCategory {
+  id         String             @id @default(uuid(7)) @db.Uuid
+  userId     String             @db.Uuid
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String             @db.VarChar(60)
+  archivedAt DateTime?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  foods      Food[]
+  portions   MealBlockPortion[]
+
+  @@unique([userId, name])
+  @@map("food_categories")
+  @@schema("app")
+}
+
+model Food {
+  id         String       @id @default(uuid(7)) @db.Uuid
+  userId     String       @db.Uuid
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId String       @db.Uuid
+  category   FoodCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  name       String       @db.VarChar(60)
+  /// Key of the icon chosen in the catalog (see meals/domain/food-icons.ts).
+  icon       String?      @db.VarChar(40)
+  measure    FoodMeasure
+  /// Size of one serving in the base measure (g, ml or pieces).
+  unitSize   Int
+  /// What is at home, in the base measure.
+  stock      Int          @default(0)
+  archivedAt DateTime?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  items      MealItem[]
+
+  @@unique([userId, name])
+  @@index([userId, categoryId])
+  @@map("foods")
+  @@schema("app")
+}
+
+/// A meal of the day ("Almuerzo", 13:00–14:00). Blocks repeat every day.
+model MealBlock {
+  id         String             @id @default(uuid(7)) @db.Uuid
+  userId     String             @db.Uuid
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String             @db.VarChar(60)
+  /// "HH:MM", 24 h, in the user's time zone. Start is before end (no block crosses midnight).
+  startTime  String             @db.Char(5)
+  endTime    String             @db.Char(5)
+  /// Send a push notification when the block starts.
+  notify     Boolean            @default(true)
+  archivedAt DateTime?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  portions   MealBlockPortion[]
+  meals      Meal[]
+
+  @@index([userId])
+  @@map("meal_blocks")
+  @@schema("app")
+}
+
+/// Servings of a food category that a block asks for.
+model MealBlockPortion {
+  userId     String       @db.Uuid
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  blockId    String       @db.Uuid
+  block      MealBlock    @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  categoryId String       @db.Uuid
+  category   FoodCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  servings   Int
+
+  @@id([blockId, categoryId])
+  @@index([userId])
+  @@map("meal_block_portions")
+  @@schema("app")
+}
+
+/// A block on a given day: planned ahead or eaten.
+model Meal {
+  id        String     @id @default(uuid(7)) @db.Uuid
+  userId    String     @db.Uuid
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  blockId   String     @db.Uuid
+  block     MealBlock  @relation(fields: [blockId], references: [id], onDelete: Restrict)
+  date      DateTime   @db.Date
+  status    MealStatus @default(PLANNED)
+  eatenAt   DateTime?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  items     MealItem[]
+
+  @@unique([blockId, date])
+  @@index([userId, date])
+  @@map("meals")
+  @@schema("app")
+}
+
+model MealItem {
+  id       String @id @default(uuid(7)) @db.Uuid
+  userId   String @db.Uuid
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mealId   String @db.Uuid
+  meal     Meal   @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  foodId   String @db.Uuid
+  food     Food   @relation(fields: [foodId], references: [id], onDelete: Restrict)
+  servings Int
+  /// Base amount actually taken out of the pantry when eaten (less than the
+  /// servings when the pantry was short). Undoing puts back exactly this.
+  taken    Int    @default(0)
+
+  @@index([mealId])
+  @@index([foodId])
+  @@map("meal_items")
+  @@schema("app")
+}
+
+model MealSettings {
+  userId            String   @id @db.Uuid
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Warn when the pantry does not cover this many days of blocks.
+  coverageDays      Int      @default(3)
+  /// "HH:MM": earliest time of the daily "falta comida" notification.
+  shortageAlertTime String   @default("10:00") @db.Char(5)
+  updatedAt         DateTime @updatedAt
+
+  @@map("meal_settings")
+  @@schema("app")
+}
+
+// ---------------------------------------------------------------------------
+// Notifications (Web Push)
+// ---------------------------------------------------------------------------
+
+/// A browser or installed app that accepted notifications.
+model PushSubscription {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("push_subscriptions")
+  @@schema("app")
+}
+
+/// One row per notification sent, so each one goes out at most once
+/// ("meal:<blockId>:<date>"), even if the scheduler runs twice.
+model NotificationDelivery {
+  id     String   @id @default(uuid(7)) @db.Uuid
+  userId String   @db.Uuid
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key    String   @db.VarChar(120)
+  sentAt DateTime @default(now())
+
+  @@unique([userId, key])
+  @@map("notification_deliveries")
+  @@schema("app")
+}

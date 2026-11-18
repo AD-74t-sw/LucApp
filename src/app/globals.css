@@ -1,0 +1,143 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens. Components only use these semantic names, never raw colors.
+ * Visual direction: flat, high-contrast, square corners, thin 1px borders,
+ * black primary actions, a restrained purple accent and monospace labels.
+ *
+ * The theme is chosen per app, not by the system: finance is dark and meals
+ * light (see src/app/apps.ts, which sets data-theme on <html>). Login and
+ * register follow the system.
+ */
+:root {
+  color-scheme: light;
+  --background: #ffffff;
+  --surface: #ffffff;
+  --surface-muted: #f5f5f5;
+  --border: #e3e3e3;
+  --border-strong: #0d0d0d;
+  --grid-line: #f0f0f0;
+  --foreground: #0d0d0d;
+  --muted: #5c5c5c;
+  /* Primary actions are solid black. */
+  --primary: #0d0d0d;
+  --primary-foreground: #ffffff;
+  /* Purple accent for focus, active states and highlights. */
+  --accent: #6e3ff3;
+  --accent-soft: #f1ebff;
+  --accent-foreground: #ffffff;
+  /* Amounts: positive (income, what others owe me) in the brand purple,
+     negative (spending, what I owe) in orange. Errors use their own red. */
+  --positive: #6e3ff3;
+  --positive-soft: #f1ebff;
+  --negative: #c2410c;
+  --negative-soft: #fff1e8;
+  --danger: #c42b1c;
+  --danger-soft: #fdecea;
+  --warning: #8a5a00;
+  --warning-soft: #fff4d6;
+  --ring: #6e3ff3;
+  /* Chart series (validated categorical palette, light steps) */
+  --series-1: #6e3ff3;
+  --series-2: #e8743b;
+  --series-3: #1baf7a;
+  --series-neutral: #d4d4d4;
+  --chart-grid: #ededed;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #0d0d0d;
+  --surface: #141414;
+  --surface-muted: #1c1c1c;
+  --border: #2a2a2a;
+  --border-strong: #f2f2f2;
+  --grid-line: #161616;
+  --foreground: #f2f2f2;
+  --muted: #a3a3a3;
+  --primary: #f2f2f2;
+  --primary-foreground: #0d0d0d;
+  --accent: #9b84ff;
+  --accent-soft: #221a3d;
+  --accent-foreground: #0d0d0d;
+  --positive: #9b84ff;
+  --positive-soft: #221a3d;
+  --negative: #ff8a4c;
+  --negative-soft: #2e1c12;
+  --danger: #ff7b70;
+  --danger-soft: #2e1714;
+  --warning: #f2b54a;
+  --warning-soft: #2b2212;
+  --ring: #9b84ff;
+  /* Chart series (validated against the dark surface) */
+  --series-1: #8466f5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-neutral: #3a3a3a;
+  --chart-grid: #232323;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-positive: var(--positive);
+  --color-positive-soft: var(--positive-soft);
+  --color-negative: var(--negative);
+  --color-negative-soft: var(--negative-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-ring: var(--ring);
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-neutral: var(--series-neutral);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Large grotesque headings with tight tracking. */
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Thin grid lines behind content (used by the app and auth backgrounds). */
+.bg-grid {
+  background-color: var(--background);
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: 88px 88px;
+}
+
+/* Small monospace caption, e.g. stat labels and section eyebrows. */
+.eyebrow {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
