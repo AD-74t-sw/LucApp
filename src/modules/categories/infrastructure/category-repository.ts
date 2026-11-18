@@ -54,6 +54,11 @@ export const categoryRepository = {
     return count > 0;
   },
 
+  /** Every category of the user, archived ones included. */
+  async countAll(userId: string, db: Db = prisma): Promise<number> {
+    return db.category.count({ where: { userId } });
+  },
+
   async hasChildren(userId: string, id: string): Promise<boolean> {
     return (await prisma.category.count({ where: { userId, parentId: id } })) > 0;
   },

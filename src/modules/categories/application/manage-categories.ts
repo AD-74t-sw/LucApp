@@ -79,6 +79,17 @@ export async function deleteCategory(userId: string, id: string): Promise<Result
   return ok();
 }
 
-export async function createDefaultCategories(userId: string, db?: Db): Promise<void> {
+/**
+ * Gives the default categories to a user who has none at all (not even
+ * archived ones). Runs on every sign-in, so an account left without
+ * categories repairs itself; someone who has any is never touched.
+ */
+export async function ensureDefaultCategories(userId: string, db?: Db): Promise<Result<void>> {
+  if ((await categoryRepository.countAll(userId, db)) > 0) {
+    return conflict(
+      "Ya tienes categorías. Si no las ves, revisa las archivadas con «Ver archivadas».",
+    );
+  }
   await categoryRepository.createTree(userId, DEFAULT_CATEGORIES, db);
+  return ok();
 }

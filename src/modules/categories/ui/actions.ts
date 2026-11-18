@@ -10,6 +10,7 @@ import { createCategorySchema, updateCategorySchema } from "../application/categ
 import {
   createCategory,
   deleteCategory,
+  ensureDefaultCategories,
   setCategoryArchived,
   updateCategory,
 } from "../application/manage-categories";
@@ -54,6 +55,15 @@ export async function toggleCategoryArchivedAction(
     status: "success",
     message: archived ? "Categoría archivada." : "Categoría restaurada.",
   };
+}
+
+/** "Agregar categorías sugeridas", for an account that has none. */
+export async function addDefaultCategoriesAction(_prev: ActionState): Promise<ActionState> {
+  const user = await requireUser();
+  const result = await ensureDefaultCategories(user.id);
+  if (!result.ok) return errorState(result.error);
+  revalidatePath("/", "layout");
+  return { status: "success", message: "Categorías sugeridas agregadas." };
 }
 
 export async function deleteCategoryAction(id: string, _prev: ActionState): Promise<ActionState> {

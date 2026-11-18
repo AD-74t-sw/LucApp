@@ -18,4 +18,4 @@ export {
   getCategoryWithParent,
   listCategories,
 } from "./application/category-queries";
-export { createDefaultCategories } from "./application/manage-categories";
+export { ensureDefaultCategories } from "./application/manage-categories";

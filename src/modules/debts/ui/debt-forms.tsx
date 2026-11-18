@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef } from "react";
 import type { Account } from "@/modules/accounts";
 import { AccountSelect } from "@/modules/accounts/ui";
@@ -160,7 +161,22 @@ export function DebtForm(props: DebtFormProps) {
             placeholder="Cena, préstamo…"
           />
         </Field>
-        <Field label="Categoría" htmlFor="debt-category" error={fieldError(state, "categoryId")}>
+        <Field
+          label="Categoría"
+          htmlFor="debt-category"
+          error={fieldError(state, "categoryId")}
+          hint={
+            categories.length === 0 ? (
+              <>
+                No tienes categorías de gasto.{" "}
+                <Link href="/categories" className="text-accent underline">
+                  Créalas en Categorías
+                </Link>
+                .
+              </>
+            ) : undefined
+          }
+        >
           <CategorySelect
             id="debt-category"
             name="categoryId"

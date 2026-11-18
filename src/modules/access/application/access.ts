@@ -1,7 +1,7 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { z } from "zod";
 import { ensureCashAccount } from "@/modules/accounts";
-import { createDefaultCategories } from "@/modules/categories";
+import { ensureDefaultCategories } from "@/modules/categories";
 import { type AuthUser, confirmEmail, ensureProfile, signIn, signUp } from "@/modules/identity";
 import { currency, text } from "@/shared/application/fields";
 import { type Result, ok } from "@/shared/domain";
@@ -13,11 +13,16 @@ import { runInTransaction } from "@/shared/infrastructure";
  * categories modules, which do not know about each other.
  */
 
-/** Creates profile, settings and default categories the first time a user gets a session. */
+/**
+ * Creates profile, settings and default categories the first time a user gets
+ * a session. On later sign-ins it repairs what is missing: the default
+ * categories if the account has none, and the cash account.
+ */
 export async function provisionUser(user: AuthUser): Promise<void> {
   await runInTransaction(async (tx) => {
-    const { created, settings } = await ensureProfile(user, tx);
-    if (created) await createDefaultCategories(user.id, tx);
+    const { settings } = await ensureProfile(user, tx);
+    // A no-op (a "conflict" result) when the user already has categories.
+    await ensureDefaultCategories(user.id, tx);
     // Every user has a cash account for money in hand (also repaired on later sign-ins).
     await ensureCashAccount(user.id, settings.baseCurrency, tx);
   });
